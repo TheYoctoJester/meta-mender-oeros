@@ -1,0 +1,183 @@
+{
+    "description": "OpenEmbedded ROS - Wrynose Lyrical on bootc with Mender (oeros demo)",
+    "sources": {
+        "bitbake": {
+            "git-remote": {
+                "uri": "https://git.openembedded.org/bitbake",
+                "branch": "2.18",
+                "rev": "2.18"
+            }
+        },
+        "openembedded-core": {
+            "git-remote": {
+                "uri": "https://git.openembedded.org/openembedded-core",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-clang": {
+            "git-remote": {
+                "uri": "https://github.com/kraj/meta-clang.git",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-intel-realsense": {
+            "git-remote": {
+                "uri": "https://github.com/realsenseai/meta-intel-realsense.git",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-oeros": {
+            "git-remote": {
+                "uri": "https://github.com/oerosproject/meta-oeros.git",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-openembedded": {
+            "git-remote": {
+                "uri": "https://github.com/openembedded/meta-openembedded",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-python-ai": {
+            "git-remote": {
+                "uri": "https://github.com/zboszor/meta-python-ai",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-qt6": {
+            "git-remote": {
+                "uri": "https://code.qt.io/yocto/meta-qt6.git",
+                "branch": "6.11",
+                "rev": "6.11"
+            }
+        },
+        "meta-raspberrypi": {
+            "git-remote": {
+                "uri": "https://github.com/agherzan/meta-raspberrypi.git",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-ros": {
+            "git-remote": {
+                "uri": "https://github.com/ros/meta-ros.git",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-virtualization": {
+            "git-remote": {
+                "uri": "https://git.yoctoproject.org/meta-virtualization",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-yocto": {
+            "git-remote": {
+                "uri": "https://git.yoctoproject.org/meta-yocto",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-zenoh": {
+            "git-remote": {
+                "uri": "https://github.com/Jarsop/meta-zenoh.git",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-mender": {
+            "git-remote": {
+                "uri": "https://github.com/mendersoftware/meta-mender",
+                "branch": "wrynose",
+                "rev": "wrynose"
+            }
+        },
+        "meta-bootc": {
+            "git-remote": {
+                "uri": "https://github.com/oerosproject/meta-bootc",
+                "branch": "master",
+                "rev": "master"
+            }
+        },
+        "meta-oeros-bootc-mender": {
+            "local": {
+                "path": "/home/tyj/builds/oeros/meta-oeros-bootc-mender"
+            }
+        }
+    },
+    "bitbake-setup": {
+        "configurations": [
+            {
+                "name": "oeros-wrynose-lyrical-bootc",
+                "description": "OpenEmbedded ROS Wrynose Lyrical on bootc, Mender for deployments, fleet and remote access",
+                "setup-dir-name": "oeros-wrynose-lyrical-bootc",
+                "bb-layers": [
+                    "openembedded-core/meta",
+                    "meta-openembedded/meta-filesystems",
+                    "meta-openembedded/meta-gnome",
+                    "meta-openembedded/meta-initramfs",
+                    "meta-openembedded/meta-multimedia",
+                    "meta-openembedded/meta-networking",
+                    "meta-openembedded/meta-oe",
+                    "meta-openembedded/meta-perl",
+                    "meta-openembedded/meta-python",
+                    "meta-openembedded/meta-webserver",
+                    "meta-openembedded/meta-xfce",
+                    "meta-clang",
+                    "meta-intel-realsense",
+                    "meta-oeros",
+                    "meta-python-ai",
+                    "meta-qt6",
+                    "meta-raspberrypi",
+                    "meta-ros/meta-ros-common",
+                    "meta-ros/meta-ros2",
+                    "meta-ros/meta-ros2-lyrical",
+                    "meta-virtualization",
+                    "meta-yocto/meta-yocto-bsp",
+                    "meta-zenoh/meta-zenoh",
+                    "meta-mender/meta-mender-core",
+                    "meta-bootc/meta-bootc",
+                    "meta-oeros-bootc-mender"
+                ],
+                "bb-env-passthrough-additions": [
+                    "DL_DIR",
+                    "SSTATE_DIR",
+                    "MENDER_TENANT_TOKEN"
+                ],
+                "oe-fragments-one-of": {
+                    "distro": {
+                        "description": "Target distributions",
+                        "options": [
+                            {
+                                "name": "distro/oeros",
+                                "description": "Oeros Reference Distro"
+                            }
+                        ]
+                    },
+                    "machine": {
+                        "description": "Target machines",
+                        "options": [
+                            {
+                                "name": "machine/qemux86-64",
+                                "description": "Machine configuration for running an x86-64 system on QEMU"
+                            }
+                        ]
+                    }
+                },
+                "oe-fragments": [
+                    "bootc/base",
+                    "bootc/sysext",
+                    "bootc/rm-work"
+                ]
+            }
+        ]
+    },
+    "version": "1.0"
+}
