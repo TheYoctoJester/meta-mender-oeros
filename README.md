@@ -109,6 +109,14 @@ broken OS, and app versions 1, 2 and a broken 3, passing each variant with
 take about 13 minutes, mostly the two 300 s health deadlines. Use
 `--keep-vm` to leave the VM running for inspection.
 
+## Reproducibility
+
+Rebuilding identical sources gives the same OCI manifest digest (verified
+with forced rebuilds), so bootc sees the same OS image. The fragment disables
+the build time label `org.opencontainers.image.created` for that. The OCI
+archive file and the Mender artifact are not byte identical between builds
+(tar header times), only their content is.
+
 ## Known limitations
 
 - A hang without a panic is not detected: nothing reboots the device. Needs a
