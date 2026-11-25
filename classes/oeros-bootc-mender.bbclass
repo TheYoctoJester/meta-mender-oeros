@@ -11,6 +11,11 @@ OEROS_BOOTC_DEVICE_TYPE ??= "${MENDER_DEVICE_TYPE}"
 # bootc status reports this label as the image version
 OCI_IMAGE_LABELS:append = " org.opencontainers.image.version=${OEROS_BOOTC_OS_VERSION}"
 
+# mender-setup adds boot and data partition mounts of its A/B layout to every
+# image's fstab (mender-setup-image.inc, unconditional). The bootc layout has
+# neither; the stale /dev/mmcblk0p* entries drop the system to emergency mode.
+ROOTFS_POSTPROCESS_COMMAND:remove = "mender_update_fstab_file"
+
 IMAGE_FSTYPES += "bootc-mender"
 IMAGE_TYPEDEP:bootc-mender = "oci"
 do_image_bootc_mender[depends] += "mender-artifact-native:do_populate_sysroot"
