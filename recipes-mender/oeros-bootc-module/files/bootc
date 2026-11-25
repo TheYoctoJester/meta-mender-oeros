@@ -130,7 +130,9 @@ do_install() {
 
 # A staged deployment is only written to the bootloader configuration at
 # shutdown (ostree-finalize-staged.service); dropping it before that point
-# means undeploying it. VERIFY ON TARGET.
+# means undeploying it. The staged deployment is always index 0 (verified
+# with bootc 1.16.4 / ostree 2026.1: undeploy 0 removes it, booted and
+# rollback stay, the next boot is the booted one).
 drop_staged() {
     ostree admin undeploy 0 >&2
 }
