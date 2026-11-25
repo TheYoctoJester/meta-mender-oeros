@@ -69,15 +69,33 @@ clear_pending() {
     grubenv set bootc_upgrade_available=0 bootc_bootcount=0 || log "could not clear the grub environment"
 }
 
-# Health of the booted system: no failed units once startup finished, and
-# every oeros-quadlet app passes its own health check.
+health_units() {
+    f=/usr/lib/oeros/health-units
+    [ -r /etc/oeros/health-units ] && f=/etc/oeros/health-units
+    [ -r "$f" ] && sed -e 's/#.*//' "$f" | tr -s ' \t' '\n\n' | grep -v '^$'
+}
+
+# Health of the booted system: once startup finished, every unit on the
+# allow-list is active (polled until the deadline), and every oeros-quadlet
+# app passes its own health check. Other failed units are only reported.
 healthcheck() {
+    end=$(($(date +%s) + HEALTH_DEADLINE))
     timeout "$HEALTH_DEADLINE" systemctl is-system-running --wait >/dev/null 2>&1
+    units=$(health_units)
+    while :; do
+        missing=""
+        for u in $units; do
+            systemctl is-active -q "$u" || missing="$missing $u"
+        done
+        [ -z "$missing" ] && break
+        if [ "$(date +%s)" -ge "$end" ]; then
+            log "required units not active:$missing"
+            return 1
+        fi
+        sleep 5
+    done
     failed=$(systemctl list-units --state=failed --no-legend --plain | awk '{print $1}')
-    if [ -n "$failed" ]; then
-        log "failed units: $(echo $failed)"
-        return 1
-    fi
+    [ -z "$failed" ] || log "failed units outside the allow-list (ignored): $(echo $failed)"
     if [ -x /usr/libexec/oeros-quadlet-healthcheck-all ]; then
         /usr/libexec/oeros-quadlet-healthcheck-all || return 1
     fi

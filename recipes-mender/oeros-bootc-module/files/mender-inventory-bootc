@@ -8,4 +8,6 @@ for slot in booted staged rollback; do
     [ -n "$v" ] && echo "bootc_${slot}_version=$v"
 done
 echo "bootc_rollback_queued=$(echo "$st" | jq -r '.status.rollbackQueued // false')"
+failed=$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}')
+echo "system_failed_units=$(echo ${failed:-none})"
 exit 0

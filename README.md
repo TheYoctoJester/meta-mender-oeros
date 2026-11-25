@@ -64,9 +64,14 @@ persistent because `/var` is shared by all ostree deployments.
 - `oeros-bootc-module`: update module `bootc`. Download streams the archive to
   `/var/lib/oeros-bootc`, Install runs `bootc upgrade` (or `switch` when the
   origin differs) and arms the boot counter, VerifyReboot and Commit check that
-  the new digest is booted and the system is healthy (no failed units, all
-  Quadlet app health checks), Rollback drops a staged deployment or runs
-  `bootc rollback`. Inventory: `bootc_{booted,staged,rollback}_{digest,version}`.
+  the new digest is booted and the system is healthy, Rollback drops a staged
+  deployment or runs `bootc rollback`. Inventory:
+  `bootc_{booted,staged,rollback}_{digest,version}`, `system_failed_units`.
+  Healthy means: every unit on the allow-list (`OEROS_HEALTH_UNITS`, installed
+  to `/usr/lib/oeros/health-units`, replaced per device by
+  `/etc/oeros/health-units`) is active within 300 s, and every Quadlet app
+  passes its own health check. Other failed units are logged and reported in
+  the inventory, they do not roll back an update.
 - `oeros-quadlet-module`: update module `oeros-quadlet` for apps (OCI archive,
   Quadlet `.container` unit, optional health check), no reboot, automatic
   rollback to the previous release when the health check fails.
