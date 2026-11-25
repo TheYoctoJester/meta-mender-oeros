@@ -1,0 +1,15 @@
+[Unit]
+Description=oeros ros-core app @VERSION@ (publisher on @TOPIC@)
+
+[Container]
+Image=@IMAGE@
+ContainerName=oeros-ros-core
+Network=host
+Exec=ros2 topic pub --rate 1 @TOPIC@ std_msgs/msg/String "{data: @MESSAGE@}"
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

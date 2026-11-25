@@ -1,0 +1,14 @@
+#!/bin/sh
+# Healthy when the app container publishes its expected message on /chatter.
+# The caller enforces the overall deadline.
+expect="@MESSAGE@"
+while :; do
+    if systemctl is-active -q oeros-ros-core.service; then
+        out=$(podman exec oeros-ros-core /ros_entrypoint.sh bash -c \
+            'ros2 topic echo /chatter --once & p=$!; (sleep 20; kill $p 2>/dev/null) & wait $p' 2>/dev/null)
+        case "$out" in
+            *"$expect"*) echo "ok: $expect"; exit 0 ;;
+        esac
+    fi
+    sleep 5
+done
