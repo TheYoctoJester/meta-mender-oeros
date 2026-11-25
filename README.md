@@ -14,7 +14,7 @@ Collection `mender-oeros`, depends on `core bootc mender oeros
 virtualization-layer`. The bitbake-setup configuration is
 `conf/registry/oeros-wrynose-lyrical-bootc.conf.json` (upstream oeros JSON plus
 meta-bootc master and this layer; fragments `bootc/base bootc/sysext
-bootc/rm-work`). All layers float on their branches.
+bootc/rm-work mender-oeros/bootc-mender`). All layers float on their branches.
 
 ```
 bitbake-setup init --non-interactive \
@@ -30,16 +30,17 @@ Every image records the layer revisions it was built from, with a
 bitbake-setup keeps the resolved revisions of the whole setup in
 `<setup>/config/sources-fixed-revisions.json`.
 
-local.conf additions on top of the oeros defaults:
+The fragment `mender-oeros/bootc-mender` (`conf/fragments/bootc-mender.conf`)
+holds all required settings: the Mender client without a partition layout
+(`mender-setup` with `mender-auth-install mender-update-install
+mender-systemd`), the podman container image settings and `panic=5`. Only the
+tenant token is not in the layer: export `MENDER_TENANT_TOKEN` before
+building, the setup passes it through. `MENDER_SERVER_URL` (default
+hosted.mender.io) and `MENDER_CONNECT_USER` (default root) can be overridden in
+local.conf.
 
-```
-INHERIT += "mender-setup"
-MENDER_FEATURES_ENABLE:append = " mender-auth-install mender-update-install mender-systemd"
-MENDER_SERVER_URL = "https://hosted.mender.io"
-MENDER_TENANT_TOKEN = "..."
-MENDER_CONNECT_USER = "root"
-BOOTC_KERNEL_ARGS:append = " panic=5"
-```
+For development, `bitbake-config-build enable-fragment bootc/testing` (from
+meta-bootc) allows root ssh login without a password.
 
 No `mender-image*` feature: there is no A/B rootfs. `/var/lib/mender` is
 persistent because `/var` is shared by all ostree deployments.

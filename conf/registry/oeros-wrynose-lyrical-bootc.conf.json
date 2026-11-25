@@ -176,7 +176,8 @@
                 "oe-fragments": [
                     "bootc/base",
                     "bootc/sysext",
-                    "bootc/rm-work"
+                    "bootc/rm-work",
+                    "mender-oeros/bootc-mender"
                 ]
             }
         ]
