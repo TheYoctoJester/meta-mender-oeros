@@ -1,4 +1,4 @@
-# meta-oeros-bootc-mender
+# meta-mender-oeros
 
 oeros on bootable containers (meta-bootc) with Mender as the deployment, fleet
 management and remote access layer. The OS is a bootc OCI image managed by
@@ -10,11 +10,20 @@ Status: demo, verified on qemux86-64 (KVM, OVMF) against hosted.mender.io.
 
 ## Layers and setup
 
-Collection `oeros-bootc-mender`, depends on `core bootc mender oeros
+Collection `mender-oeros`, depends on `core bootc mender oeros
 virtualization-layer`. The bitbake-setup configuration is
 `conf/registry/oeros-wrynose-lyrical-bootc.conf.json` (upstream oeros JSON plus
 meta-bootc master and this layer; fragments `bootc/base bootc/sysext
-bootc/rm-work`).
+bootc/rm-work`). All layers float on their branches.
+
+```
+bitbake-setup init --non-interactive \
+    https://raw.githubusercontent.com/TheYoctoJester/meta-mender-oeros/main/conf/registry/oeros-wrynose-lyrical-bootc.conf.json \
+    distro/oeros machine/qemux86-64
+```
+
+To work on a local clone of this layer instead, add
+`-L meta-mender-oeros /path/to/meta-mender-oeros`.
 
 local.conf additions on top of the oeros defaults:
 

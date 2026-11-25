@@ -106,9 +106,11 @@
                 "rev": "master"
             }
         },
-        "meta-oeros-bootc-mender": {
-            "local": {
-                "path": "/home/tyj/builds/oeros/meta-oeros-bootc-mender"
+        "meta-mender-oeros": {
+            "git-remote": {
+                "uri": "https://github.com/TheYoctoJester/meta-mender-oeros",
+                "branch": "main",
+                "rev": "main"
             }
         }
     },
@@ -144,7 +146,7 @@
                     "meta-zenoh/meta-zenoh",
                     "meta-mender/meta-mender-core",
                     "meta-bootc/meta-bootc",
-                    "meta-oeros-bootc-mender"
+                    "meta-mender-oeros"
                 ],
                 "bb-env-passthrough-additions": [
                     "DL_DIR",
