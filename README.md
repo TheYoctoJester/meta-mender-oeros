@@ -25,6 +25,11 @@ bitbake-setup init --non-interactive \
 To work on a local clone of this layer instead, add
 `-L meta-mender-oeros /path/to/meta-mender-oeros`.
 
+Every image records the layer revisions it was built from, with a
+`-- modified` marker for uncommitted changes, in `/usr/lib/oeros/buildinfo`.
+bitbake-setup keeps the resolved revisions of the whole setup in
+`<setup>/config/sources-fixed-revisions.json`.
+
 local.conf additions on top of the oeros defaults:
 
 ```
