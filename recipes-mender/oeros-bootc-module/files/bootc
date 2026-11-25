@@ -1,0 +1,197 @@
+#!/bin/sh
+# Mender update module "bootc": installs a bootc OS image delivered inside
+# the Mender artifact (OCI archive) as a new ostree deployment.
+#
+# Mender is the transport and the orchestrator; bootc does the staging and
+# the rollback. The grub ESP stub (oeros-bootc-disk.bbclass) falls back to
+# the previous deployment if the new one never reaches the commit.
+set -u
+
+STATE="$1"
+FILES="${2:-}"
+
+WORK=/var/lib/oeros-bootc
+TAR="$WORK/staging.oci.tar"
+ESP_DEV=/dev/disk/by-label/esp
+GRUBENV_REL=EFI/BOOT/grubenv
+HEALTH_DEADLINE=300
+
+log() {
+    echo "oeros-bootc: $*" >&2
+}
+
+fail() {
+    log "ERROR: $*"
+    exit 1
+}
+
+status_json() {
+    bootc status --format json
+}
+
+# Manifest digest of a deployment slot (booted, staged, rollback)
+slot_digest() {
+    status_json | jq -r ".status.$1.image.imageDigest // empty"
+}
+
+# Digest of the deployment the bootloader boots next. With no staged
+# deployment that is the booted one, unless a rollback is queued.
+default_digest() {
+    st=$(status_json)
+    if [ "$(echo "$st" | jq -r '.status.staged // empty')" != "" ]; then
+        echo "$st" | jq -r '.status.staged.image.imageDigest'
+    elif [ "$(echo "$st" | jq -r '.status.rollbackQueued')" = "true" ]; then
+        echo "$st" | jq -r '.status.rollback.image.imageDigest'
+    else
+        echo "$st" | jq -r '.status.booted.image.imageDigest'
+    fi
+}
+
+grubenv() {
+    mnt=$(findmnt -rn -o TARGET --source "$ESP_DEV" 2>/dev/null | head -n1)
+    tmpmnt=""
+    if [ -z "$mnt" ]; then
+        tmpmnt=$(mktemp -d /run/oeros-bootc-esp.XXXXXX)
+        mount "$ESP_DEV" "$tmpmnt" || { rmdir "$tmpmnt"; return 1; }
+        mnt=$tmpmnt
+    fi
+    grub-editenv "$mnt/$GRUBENV_REL" "$@"
+    rc=$?
+    sync
+    if [ -n "$tmpmnt" ]; then
+        umount "$tmpmnt"
+        rmdir "$tmpmnt"
+    fi
+    return $rc
+}
+
+clear_pending() {
+    grubenv set bootc_upgrade_available=0 bootc_bootcount=0 || log "could not clear the grub environment"
+}
+
+# Health of the booted system: no failed units once startup finished, and
+# every oeros-quadlet app passes its own health check.
+healthcheck() {
+    timeout "$HEALTH_DEADLINE" systemctl is-system-running --wait >/dev/null 2>&1
+    failed=$(systemctl list-units --state=failed --no-legend --plain | awk '{print $1}')
+    if [ -n "$failed" ]; then
+        log "failed units: $(echo $failed)"
+        return 1
+    fi
+    if [ -x /usr/libexec/oeros-quadlet-healthcheck-all ]; then
+        /usr/libexec/oeros-quadlet-healthcheck-all || return 1
+    fi
+    return 0
+}
+
+do_download() {
+    mkdir -p "$WORK"
+    rm -f "$TAR"
+    n=0
+    while :; do
+        stream=$(cat "$FILES/stream-next")
+        [ -n "$stream" ] || break
+        n=$((n + 1))
+        [ $n -eq 1 ] || fail "expected exactly one OCI archive"
+        if ! cat "$FILES/$stream" > "$TAR"; then
+            rm -f "$TAR"
+            fail "writing $TAR failed (disk full?)"
+        fi
+    done
+    [ $n -eq 1 ] || fail "expected exactly one OCI archive"
+    sync
+}
+
+do_install() {
+    [ -s "$TAR" ] || fail "no downloaded OCI archive"
+    new=$( (tar -xOf "$TAR" ./index.json 2>/dev/null || tar -xOf "$TAR" index.json) | jq -r '.manifests[0].digest')
+    [ -n "$new" ] && [ "$new" != null ] || fail "no manifest digest in the OCI archive"
+    old=$(slot_digest booted)
+    [ -n "$old" ] || fail "booted deployment is not a bootc image"
+    [ "$new" != "$old" ] || fail "image $new is already booted"
+    echo "$old" > "$WORK/old"
+    echo "$new" > "$WORK/new"
+    log "staging $new (booted: $old)"
+    bootc switch --transport oci-archive "$TAR" >&2 || fail "bootc switch failed"
+    staged=$(slot_digest staged)
+    [ "$staged" = "$new" ] || fail "staged digest '$staged' does not match the artifact ($new)"
+    # the content now lives in the ostree repository
+    rm -f "$TAR"
+    grubenv set bootc_upgrade_available=1 bootc_bootcount=0 || fail "could not arm the boot counter"
+}
+
+# A staged deployment is only written to the bootloader configuration at
+# shutdown (ostree-finalize-staged.service); dropping it before that point
+# means undeploying it. VERIFY ON TARGET.
+drop_staged() {
+    ostree admin undeploy 0 >&2
+}
+
+do_verify_reboot() {
+    new=$(cat "$WORK/new")
+    booted=$(slot_digest booted)
+    if [ "$booted" != "$new" ]; then
+        fail "booted $booted instead of $new (bootloader fell back?)"
+    fi
+    healthcheck || fail "health check failed on $new"
+    log "booted $new and healthy"
+}
+
+do_rollback() {
+    old=$(cat "$WORK/old" 2>/dev/null) || fail "no record of the previous deployment"
+    booted=$(slot_digest booted)
+    if [ "$(default_digest)" != "$old" ]; then
+        if [ -n "$(slot_digest staged)" ]; then
+            # never rebooted into the new deployment: drop it
+            drop_staged || fail "could not drop the staged deployment"
+        else
+            # booted into the new deployment, or grub fell back and the new
+            # one is still the default: make the previous one the default
+            bootc rollback >&2 || fail "bootc rollback failed"
+        fi
+    fi
+    [ "$(default_digest)" = "$old" ] || fail "default deployment is not $old after rollback"
+    clear_pending
+    log "rolled back to $old (booted now: $booted)"
+}
+
+do_verify_rollback_reboot() {
+    old=$(cat "$WORK/old")
+    [ "$(slot_digest booted)" = "$old" ] || fail "not booted into $old"
+}
+
+do_commit() {
+    clear_pending
+    rm -f "$TAR"
+}
+
+case "$STATE" in
+    NeedsArtifactReboot)
+        echo "Automatic"
+        ;;
+    SupportsRollback)
+        echo "Yes"
+        ;;
+    Download)
+        do_download
+        ;;
+    ArtifactInstall)
+        do_install
+        ;;
+    ArtifactVerifyReboot)
+        do_verify_reboot
+        ;;
+    ArtifactCommit)
+        do_commit
+        ;;
+    ArtifactRollback)
+        do_rollback
+        ;;
+    ArtifactVerifyRollbackReboot)
+        do_verify_rollback_reboot
+        ;;
+    Cleanup)
+        rm -f "$TAR" "$WORK/new" "$WORK/old"
+        ;;
+esac
+exit 0

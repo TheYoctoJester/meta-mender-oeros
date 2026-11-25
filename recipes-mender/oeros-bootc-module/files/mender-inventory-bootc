@@ -1,0 +1,11 @@
+#!/bin/sh
+# Mender inventory: bootc deployment state
+st=$(bootc status --format json 2>/dev/null) || exit 0
+for slot in booted staged rollback; do
+    d=$(echo "$st" | jq -r ".status.$slot.image.imageDigest // empty")
+    v=$(echo "$st" | jq -r ".status.$slot.image.version // empty")
+    [ -n "$d" ] && echo "bootc_${slot}_digest=$d"
+    [ -n "$v" ] && echo "bootc_${slot}_version=$v"
+done
+echo "bootc_rollback_queued=$(echo "$st" | jq -r '.status.rollbackQueued // false')"
+exit 0
