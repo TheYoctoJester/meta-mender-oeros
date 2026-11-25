@@ -19,7 +19,7 @@ bootc/rm-work mender-oeros/bootc-mender`). All layers float on their branches.
 ```
 bitbake-setup init --non-interactive \
     https://raw.githubusercontent.com/TheYoctoJester/meta-mender-oeros/main/conf/registry/oeros-wrynose-lyrical-bootc.conf.json \
-    distro/oeros machine/qemux86-64
+    oeros-wrynose-lyrical-bootc distro/oeros machine/qemux86-64
 ```
 
 To work on a local clone of this layer instead, add
