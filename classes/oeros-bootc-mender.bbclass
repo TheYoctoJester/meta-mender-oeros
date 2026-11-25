@@ -4,6 +4,9 @@
 # Provides bootc.os.version and bootc.os.digest under the "bootc" software
 # filesystem, so OS updates never touch the provides of app artifacts.
 
+# /var/lib/mender (device_type, persistent config) is factory content
+inherit oeros-bootc-var
+
 OEROS_BOOTC_OS_VERSION ??= "1"
 OEROS_BOOTC_ARTIFACT_NAME ??= "oeros-bootc-os-${OEROS_BOOTC_OS_VERSION}"
 OEROS_BOOTC_DEVICE_TYPE ??= "${MENDER_DEVICE_TYPE}"
