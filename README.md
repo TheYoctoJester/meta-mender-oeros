@@ -86,7 +86,28 @@ persistent because `/var` is shared by all ostree deployments.
 `OEROS_BOOTC_OS_VERSION` sets the OS version (OCI label, artifact name,
 `/usr/lib/oeros/os-version`). `OEROS_BOOTC_BROKEN = "1"` builds an image whose
 init exits, so the kernel panics; with `panic=5` this exercises the grub
-fallback.
+fallback. `OEROS_APP_VERSION` and `OEROS_APP_BROKEN` do the same for the
+ros-core app artifact.
+
+## Testing
+
+The QEMU test suite boots the image and runs the update modules through
+standalone `mender-update`: first boot, app install, app update without a
+reboot, broken app rollback, OS rollback before the reboot, OS update, the
+health allow-list in both directions and the grub fallback of a panicking OS.
+The guest network is restricted (slirp `restrict=on`), so no server is
+contacted.
+
+```
+scripts/oeros-build-test-artifacts <build-dir> <artifact-dir>
+pytest tests --artifacts <artifact-dir>
+```
+
+The first command builds the base image (wic and artifact), a next and a
+broken OS, and app versions 1, 2 and a broken 3, passing each variant with
+`bitbake -R`. The tests need qemu-system-x86_64, ssh and pytest; with KVM they
+take about 13 minutes, mostly the two 300 s health deadlines. Use
+`--keep-vm` to leave the VM running for inspection.
 
 ## Known limitations
 

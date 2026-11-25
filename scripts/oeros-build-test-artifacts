@@ -1,0 +1,87 @@
+#!/bin/sh
+# Build every artifact the QEMU test suite (tests/) needs into one directory.
+#
+# usage: oeros-build-test-artifacts <build-dir> <output-dir>
+#   build-dir   bitbake build directory of a setup that contains this layer
+#   output-dir  receives base.wic, ovmf firmware, *.mender and artifacts.json
+#
+# The variants (OS version, broken OS, app versions) are passed to bitbake
+# with -R, so local.conf is never modified. A variant setting in local.conf
+# is overridden.
+set -eu
+
+[ $# -eq 2 ] || { echo "usage: $0 <build-dir> <output-dir>" >&2; exit 2; }
+BUILD=$(cd "$1" && pwd)
+mkdir -p "$2"
+OUT=$(cd "$2" && pwd)
+mkdir -p "$OUT/conf" "$OUT/logs"
+
+OS_BASE=test-base
+OS_NEXT=test-next
+OS_BROKEN=test-broken
+
+bb() {
+    # init-build-env consumes the positional parameters when sourced: keep
+    # the command in a quoted string. TMPDIR in the environment would
+    # redirect bitbake's TMPDIR.
+    cmd=""
+    for a in "$@"; do
+        cmd="$cmd '$(printf '%s' "$a" | sed "s/'/'\\\\''/g")'"
+    done
+    # init-build-env reads unset variables: no "set -u" while sourcing it
+    (cd "$BUILD" && set +u -- && . ./init-build-env >/dev/null && eval "env -u TMPDIR $cmd")
+}
+
+getvar() {
+    bb bitbake-getvar -r oeros-bootc-host "$1" --value 2>/dev/null | tail -n1
+}
+
+# build <name> <target> <conf lines...>
+build() {
+    name=$1
+    target=$2
+    shift 2
+    printf '%s\n' "$@" > "$OUT/conf/$name.conf"
+    echo "building $name ($target)"
+    if ! bb bitbake -R "$OUT/conf/$name.conf" "$target" > "$OUT/logs/$name.log" 2>&1; then
+        echo "build of $name failed, see $OUT/logs/$name.log" >&2
+        exit 1
+    fi
+}
+
+DEPLOY=$(getvar DEPLOY_DIR_IMAGE)
+MACHINE=$(getvar MACHINE)
+DEVICE_TYPE=$(getvar MENDER_DEVICE_TYPE)
+[ -d "$DEPLOY" ] && [ -n "$MACHINE" ] || { echo "cannot query the build configuration" >&2; exit 1; }
+
+os_conf() {
+    printf 'OEROS_BOOTC_OS_VERSION = "%s"\nOEROS_BOOTC_BROKEN = "%s"\n' "$1" "$2"
+}
+
+build os-base oeros-bootc-host "$(os_conf $OS_BASE 0)"
+cp -L "$DEPLOY/oeros-bootc-host-$MACHINE.wic" "$OUT/base.wic"
+cp -L "$DEPLOY/oeros-bootc-host-$MACHINE.bootc-mender" "$OUT/os-base.mender"
+cp -L "$DEPLOY/ovmf.qcow2" "$DEPLOY/ovmf.vars.qcow2" "$OUT/"
+
+build os-next oeros-bootc-host "$(os_conf $OS_NEXT 0)"
+cp -L "$DEPLOY/oeros-bootc-host-$MACHINE.bootc-mender" "$OUT/os-next.mender"
+
+build os-broken oeros-bootc-host "$(os_conf $OS_BROKEN 1)"
+cp -L "$DEPLOY/oeros-bootc-host-$MACHINE.bootc-mender" "$OUT/os-broken.mender"
+
+for v in 1 2; do
+    build app-v$v oeros-app-ros-core "OEROS_APP_VERSION = \"$v\"" 'OEROS_APP_BROKEN = "0"'
+    cp -L "$DEPLOY/oeros-app-ros-core-v$v.mender" "$OUT/app-v$v.mender"
+done
+build app-broken oeros-app-ros-core 'OEROS_APP_VERSION = "3"' 'OEROS_APP_BROKEN = "1"'
+cp -L "$DEPLOY/oeros-app-ros-core-v3-broken.mender" "$OUT/app-broken.mender"
+
+cat > "$OUT/artifacts.json" <<EOF
+{
+    "machine": "$MACHINE",
+    "device_type": "$DEVICE_TYPE",
+    "os": {"base": "$OS_BASE", "next": "$OS_NEXT", "broken": "$OS_BROKEN"},
+    "app": {"name": "ros-core", "v1": "1", "v2": "2", "broken": "3"}
+}
+EOF
+echo "artifacts in $OUT"
