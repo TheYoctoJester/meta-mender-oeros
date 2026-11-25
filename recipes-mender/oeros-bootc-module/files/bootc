@@ -112,7 +112,15 @@ do_install() {
     echo "$old" > "$WORK/old"
     echo "$new" > "$WORK/new"
     log "staging $new (booted: $old)"
-    bootc switch --transport oci-archive "$TAR" >&2 || fail "bootc switch failed"
+    # The origin of every deployment installed by this module is the staging
+    # archive. "bootc switch" to an unchanged spec is a no-op, "bootc
+    # upgrade" re-reads the origin and stages it if the digest changed.
+    spec=$(status_json | jq -r '"\(.spec.image.transport // "")|\(.spec.image.image // "")"')
+    if [ "$spec" = "oci-archive|$TAR" ]; then
+        bootc upgrade >&2 || fail "bootc upgrade failed"
+    else
+        bootc switch --transport oci-archive "$TAR" >&2 || fail "bootc switch failed"
+    fi
     staged=$(slot_digest staged)
     [ "$staged" = "$new" ] || fail "staged digest '$staged' does not match the artifact ($new)"
     # the content now lives in the ostree repository
