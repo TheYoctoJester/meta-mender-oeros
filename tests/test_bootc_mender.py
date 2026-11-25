@@ -94,6 +94,29 @@ def test_os_update(vm, meta):
     assert running_image(vm) == "localhost/oeros-ros-core:2"
 
 
+def test_app_state_survives_os_rollback(vm, meta):
+    # app update while booted on the next OS ...
+    assert vm.booted_version() == meta["os"]["next"]
+    r = vm.install("app-v1.mender")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert vm.mender("commit").returncode == 0
+    # ... then back to the older deployment, whose /etc predates the update
+    vm.ssh("bootc rollback")
+    vm.reboot()
+    assert vm.booted_version() == meta["os"]["base"]
+    assert vm.provides()[APP_PROVIDE] == meta["app"]["v1"]
+    assert vm.ssh("/usr/libexec/oeros-quadlet-healthcheck-all", check=False).returncode == 0
+    assert running_image(vm) == "localhost/oeros-ros-core:1"
+    # restore the state the following tests expect: next OS, app v2
+    r = vm.install("app-v2.mender")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert vm.mender("commit").returncode == 0
+    vm.ssh("bootc rollback")
+    vm.reboot()
+    assert vm.booted_version() == meta["os"]["next"]
+    assert running_image(vm) == "localhost/oeros-ros-core:2"
+
+
 FAIL_UNIT = "oeros-test-fail.service"
 
 
