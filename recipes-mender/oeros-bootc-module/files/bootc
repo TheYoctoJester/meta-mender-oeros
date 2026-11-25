@@ -169,6 +169,11 @@ do_verify_rollback_reboot() {
 }
 
 do_commit() {
+    # Standalone mode (mender-update install/commit) has no
+    # ArtifactVerifyReboot state; committing after a grub fallback would
+    # disarm the boot counter with the broken deployment still the default.
+    # A failing commit makes the client roll back.
+    do_verify_reboot
     clear_pending
     rm -f "$TAR"
 }
