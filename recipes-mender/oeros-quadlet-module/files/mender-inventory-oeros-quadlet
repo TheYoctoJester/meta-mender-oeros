@@ -1,0 +1,11 @@
+#!/bin/sh
+# Mender inventory: committed version and state of each oeros-quadlet app
+. /usr/lib/oeros/quadlet-lib.sh
+for d in "$OEROS_APPS_DIR"/*/current; do
+    [ -d "$d" ] || continue
+    app=$(basename "$(dirname "$d")")
+    ver=$(oeros_field "$app" current VERSION)
+    state=$(systemctl is-active "$(oeros_service "$app" current)" 2>/dev/null)
+    echo "oeros_app_${app}=${ver} (${state})"
+done
+exit 0

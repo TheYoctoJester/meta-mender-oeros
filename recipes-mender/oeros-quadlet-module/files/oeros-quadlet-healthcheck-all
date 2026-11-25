@@ -1,0 +1,14 @@
+#!/bin/sh
+# Health check of every committed oeros-quadlet app (used by the bootc
+# update module after an OS update reboot).
+. /usr/lib/oeros/quadlet-lib.sh
+rc=0
+for d in "$OEROS_APPS_DIR"/*/current; do
+    [ -d "$d" ] || continue
+    app=$(basename "$(dirname "$d")")
+    if ! oeros_app_healthcheck "$app" current; then
+        oeros_log "$app: unhealthy"
+        rc=1
+    fi
+done
+exit $rc

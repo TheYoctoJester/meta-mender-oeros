@@ -1,0 +1,111 @@
+#!/bin/sh
+# Mender update module "oeros-quadlet": installs a podman/Quadlet app
+# (OCI image + Quadlet unit + optional health check) without a reboot.
+#
+# Artifact payload files:
+#   app.env           APP=<name> VERSION=<version> IMAGE=<local image ref> UNIT=<unit file name>
+#   image.oci.tar     OCI archive of the app image
+#   <UNIT>            Quadlet unit (<name>.container)
+#   healthcheck       optional, run with a deadline after the (re)start
+#
+# State per app in /var/lib/oeros-apps/<app>/{current,new}: the committed
+# and the pending release (app.env, unit, healthcheck). The unit itself is
+# installed to /etc/containers/systemd.
+set -u
+
+. /usr/lib/oeros/quadlet-lib.sh
+
+STATE="$1"
+FILES="${2:-}"
+TMP="$FILES/tmp"
+
+fail() {
+    oeros_log "ERROR: $*"
+    exit 1
+}
+
+do_download() {
+    mkdir -p "$TMP/in"
+    while :; do
+        stream=$(cat "$FILES/stream-next")
+        [ -n "$stream" ] || break
+        fn=$(basename "$stream")
+        case "$fn" in
+            */*|.*|"") fail "invalid file name '$fn'" ;;
+        esac
+        cat "$FILES/$stream" > "$TMP/in/$fn" || fail "writing $fn failed (disk full?)"
+    done
+    [ -r "$TMP/in/app.env" ] || fail "artifact has no app.env"
+    [ -r "$TMP/in/image.oci.tar" ] || fail "artifact has no image.oci.tar"
+}
+
+do_install() {
+    in="$TMP/in"
+    APP= VERSION= IMAGE= UNIT=
+    . "$in/app.env"
+    [ -n "$APP" ] && [ -n "$VERSION" ] && [ -n "$IMAGE" ] && [ -n "$UNIT" ] || fail "incomplete app.env"
+    case "$UNIT" in *.container) ;; *) fail "UNIT must be a .container file" ;; esac
+    [ -r "$in/$UNIT" ] || fail "artifact has no $UNIT"
+
+    dir="$OEROS_APPS_DIR/$APP"
+    rm -rf "$dir/new"
+    mkdir -p "$dir/new"
+    cp "$in/app.env" "$in/$UNIT" "$dir/new/"
+    [ -r "$in/healthcheck" ] && install -m 0755 "$in/healthcheck" "$dir/new/healthcheck"
+    echo "$APP" > "$TMP/app"
+
+    oeros_log "$APP: importing $IMAGE"
+    oeros_import_image "$in/image.oci.tar" "$IMAGE" || fail "$APP: image import failed"
+    rm -f "$in/image.oci.tar"
+
+    oeros_activate "$APP" new || fail "$APP: activation of $VERSION failed"
+    oeros_app_healthcheck "$APP" new || fail "$APP: health check of $VERSION failed"
+    oeros_log "$APP: $VERSION active and healthy"
+}
+
+do_commit() {
+    APP=$(cat "$TMP/app")
+    dir="$OEROS_APPS_DIR/$APP"
+    rm -rf "$dir/current"
+    mv "$dir/new" "$dir/current"
+    oeros_prune_images "$APP"
+}
+
+do_rollback() {
+    [ -r "$TMP/app" ] || exit 0
+    APP=$(cat "$TMP/app")
+    dir="$OEROS_APPS_DIR/$APP"
+    if [ -d "$dir/current" ]; then
+        oeros_activate "$APP" current || fail "$APP: reactivating the previous release failed"
+        oeros_app_healthcheck "$APP" current || fail "$APP: previous release is not healthy either"
+    else
+        oeros_deactivate "$APP" new
+    fi
+    rm -rf "$dir/new"
+    oeros_prune_images "$APP"
+}
+
+case "$STATE" in
+    NeedsArtifactReboot)
+        echo "No"
+        ;;
+    SupportsRollback)
+        echo "Yes"
+        ;;
+    Download)
+        do_download
+        ;;
+    ArtifactInstall)
+        do_install
+        ;;
+    ArtifactCommit)
+        do_commit
+        ;;
+    ArtifactRollback)
+        do_rollback
+        ;;
+    Cleanup)
+        rm -rf "$TMP"
+        ;;
+esac
+exit 0
