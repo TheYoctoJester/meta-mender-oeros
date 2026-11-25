@@ -1,0 +1,26 @@
+#!/bin/sh
+# Boot activation of the committed release of every oeros-quadlet app.
+#
+# Quadlet units are generated before /var is mounted, so the units of the apps
+# (kept in /var) cannot be read by the boot-time generator run. Place them in
+# /run once /var is there, reload once and start the apps.
+. /usr/lib/oeros/quadlet-lib.sh
+apps=""
+for d in "$OEROS_APPS_DIR"/*/current; do
+    [ -d "$d" ] || continue
+    app=$(basename "$(dirname "$d")")
+    if oeros_place_unit "$app" current; then
+        apps="$apps $app"
+    else
+        oeros_log "$app: cannot place the unit of the committed release"
+    fi
+done
+[ -n "$apps" ] || exit 0
+systemctl daemon-reload || exit 1
+rc=0
+for app in $apps; do
+    svc=$(oeros_service "$app" current)
+    oeros_log "$app: starting $svc"
+    systemctl start --no-block "$svc" || rc=1
+done
+exit $rc

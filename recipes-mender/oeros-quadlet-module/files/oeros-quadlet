@@ -9,8 +9,9 @@
 #   healthcheck       optional, run with a deadline after the (re)start
 #
 # State per app in /var/lib/oeros-apps/<app>/{current,new}: the committed
-# and the pending release (app.env, unit, healthcheck). The unit itself is
-# installed to /etc/containers/systemd.
+# and the pending release (app.env, unit, healthcheck). The active unit is
+# placed in /run/containers/systemd; at boot oeros-apps.service places the
+# committed ones again.
 set -u
 
 . /usr/lib/oeros/quadlet-lib.sh

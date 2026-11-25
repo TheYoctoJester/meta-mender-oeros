@@ -1,8 +1,13 @@
 # Shared functions for the oeros-quadlet update module, its inventory script
 # and the bootc module's health check.
 
+# All app state lives in /var (shared by every OS deployment). The active
+# unit is placed in /run, never in /etc: /etc is per deployment, so an OS
+# rollback would bring back the unit of an older release.
 OEROS_APPS_DIR=/var/lib/oeros-apps
-OEROS_QUADLET_DIR=/etc/containers/systemd
+OEROS_QUADLET_DIR=/run/containers/systemd
+# units of earlier versions of this module, removed on sight
+OEROS_LEGACY_QUADLET_DIR=/etc/containers/systemd
 OEROS_HEALTH_DEADLINE=300
 
 oeros_log() {
@@ -37,15 +42,25 @@ oeros_import_image() {
     done
 }
 
-# Install the release's unit (and nothing else) and (re)start it.
-oeros_activate() {
+# Place the release's unit for the Quadlet generator (no reload).
+oeros_place_unit() {
     app=$1
     rel=$2
     unit=$(oeros_field "$app" "$rel" UNIT)
+    [ -n "$unit" ] || return 1
     install -d "$OEROS_QUADLET_DIR"
-    install -m 0644 "$OEROS_APPS_DIR/$app/$rel/$unit" "$OEROS_QUADLET_DIR/$unit"
+    install -m 0644 "$OEROS_APPS_DIR/$app/$rel/$unit" "$OEROS_QUADLET_DIR/$unit" || return 1
+    if [ -e "$OEROS_LEGACY_QUADLET_DIR/$unit" ]; then
+        oeros_log "$app: removing legacy unit $OEROS_LEGACY_QUADLET_DIR/$unit"
+        rm -f "$OEROS_LEGACY_QUADLET_DIR/$unit"
+    fi
+}
+
+# Install the release's unit (and nothing else) and (re)start it.
+oeros_activate() {
+    oeros_place_unit "$1" "$2" || return 1
     systemctl daemon-reload || return 1
-    systemctl restart "$(oeros_service "$app" "$rel")"
+    systemctl restart "$(oeros_service "$1" "$2")"
 }
 
 oeros_deactivate() {
@@ -53,7 +68,7 @@ oeros_deactivate() {
     rel=$2
     unit=$(oeros_field "$app" "$rel" UNIT)
     systemctl stop "$(oeros_service "$app" "$rel")" 2>/dev/null
-    rm -f "$OEROS_QUADLET_DIR/$unit"
+    rm -f "$OEROS_QUADLET_DIR/$unit" "$OEROS_LEGACY_QUADLET_DIR/$unit"
     systemctl daemon-reload
 }
 

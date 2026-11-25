@@ -1,0 +1,14 @@
+[Unit]
+Description=Start the committed oeros-quadlet apps
+Documentation=file:///usr/lib/oeros/quadlet-lib.sh
+RequiresMountsFor=/var/lib/oeros-apps
+After=local-fs.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/oeros-apps-start
+
+[Install]
+WantedBy=multi-user.target

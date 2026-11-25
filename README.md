@@ -76,6 +76,11 @@ persistent because `/var` is shared by all ostree deployments.
 - `oeros-quadlet-module`: update module `oeros-quadlet` for apps (OCI archive,
   Quadlet `.container` unit, optional health check), no reboot, automatic
   rollback to the previous release when the health check fails.
+  All app state is in `/var/lib/oeros-apps`, shared by every OS deployment;
+  the active unit is placed in `/run/containers/systemd`, never in the
+  per-deployment `/etc`, so an OS rollback cannot bring back an older app.
+  Quadlet's generator runs before `/var` is mounted, so `oeros-apps.service`
+  places the committed units at boot, reloads systemd once and starts them.
 - `oeros-app-ros-core`: builds the ros-core app artifact from
   `oeros-container-ros-core` (`OEROS_APP_VERSION`, `OEROS_APP_BROKEN`).
 - Copied from meta-oeros-demo: Fast DDS UDPv4 profile, podman-restart mask for
@@ -122,8 +127,5 @@ archive file and the Mender artifact are not byte identical between builds
 - A hang without a panic is not detected: nothing reboots the device. Needs a
   hardware watchdog armed early (firmware or initramfs) plus systemd
   `RuntimeWatchdogSec`. Not tested.
-- Quadlet units live in the per-deployment `/etc`. A manual `bootc rollback`
-  after later app updates brings back older units; Mender serializes
-  deployments, so the modules themselves do not hit this.
 - Every OS update carries the full OCI image (about 150 MB here); no deltas.
 - Yocto's `/var/tmp` is tmpfs; do not stage artifacts there.
